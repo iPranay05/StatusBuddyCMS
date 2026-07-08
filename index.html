@@ -11,6 +11,8 @@
   <link rel="stylesheet" href="cms.css" />
   <!-- Supabase JS via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <!-- Chart.js via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
@@ -66,25 +68,25 @@
       <nav class="sidebar-nav">
         <a href="#" class="nav-item active" data-page="dashboard">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-          Dashboard
+          <span class="nav-text">Dashboard</span>
         </a>
         <a href="#" class="nav-item" data-page="statuses">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-          Statuses
+          <span class="nav-text">Statuses</span>
           <span class="nav-badge" id="nav-badge-statuses">0</span>
         </a>
         <a href="#" class="nav-item" data-page="upload">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-          Upload Status
+          <span class="nav-text">Upload Status</span>
         </a>
         <a href="#" class="nav-item" data-page="categories">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-          Categories
+          <span class="nav-text">Categories</span>
           <span class="nav-badge" id="nav-badge-categories">0</span>
         </a>
         <a href="#" class="nav-item" data-page="media">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-          Media Upload
+          <span class="nav-text">Media Upload</span>
         </a>
       </nav>
 
@@ -169,14 +171,27 @@
           </div>
         </div>
 
-        <!-- Recent Statuses -->
-        <div class="section-card">
-          <div class="section-card-header">
-            <h3>Recent Uploads</h3>
-            <button class="btn btn-sm btn-ghost" data-page="upload" onclick="navigateTo('upload')">+ Add New</button>
+        <!-- Dashboard Grid (Chart + Recent Uploads) -->
+        <div class="dashboard-grid">
+          <!-- Chart Card -->
+          <div class="section-card chart-card">
+            <div class="section-card-header">
+              <h3>Category Distribution</h3>
+            </div>
+            <div class="chart-container" style="position: relative; height: 260px; padding: 20px; display: flex; justify-content: center; align-items: center;">
+              <canvas id="category-chart"></canvas>
+            </div>
           </div>
-          <div id="recent-statuses" class="recent-list">
-            <div class="loading-row">Loading...</div>
+
+          <!-- Recent Statuses -->
+          <div class="section-card recent-card">
+            <div class="section-card-header">
+              <h3>Recent Uploads</h3>
+              <button class="btn btn-sm btn-ghost" data-page="upload" onclick="navigateTo('upload')">+ Add New</button>
+            </div>
+            <div id="recent-statuses" class="recent-list">
+              <div class="loading-row">Loading...</div>
+            </div>
           </div>
         </div>
       </div>
@@ -215,10 +230,6 @@
             <div class="search-box">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               <input type="text" id="statuses-search" placeholder="Search statuses..." class="search-input" />
-            </div>
-            <div class="bulk-actions hidden" id="bulk-actions">
-              <span id="selected-count">0 selected</span>
-              <button class="btn btn-sm btn-danger" id="bulk-delete-btn">Delete Selected</button>
             </div>
           </div>
 
@@ -480,6 +491,15 @@
         <button class="btn btn-ghost" id="delete-cancel-btn">Cancel</button>
         <button class="btn btn-danger" id="delete-confirm-btn">Delete</button>
       </div>
+    </div>
+  </div>
+
+  <!-- FLOATING BULK ACTIONS -->
+  <div id="floating-bulk-bar" class="floating-bulk-actions">
+    <span id="floating-selected-count">0 items selected</span>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-sm btn-ghost" id="bulk-clear-btn">Clear Selection</button>
+      <button class="btn btn-sm btn-danger" id="floating-bulk-delete-btn">Delete Selected</button>
     </div>
   </div>
 

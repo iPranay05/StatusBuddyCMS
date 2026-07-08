@@ -237,3 +237,106 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .toast{position:fixed;bottom:24px;right:24px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);z-index:300;box-shadow:0 8px 32px rgba(0,0,0,0.4);animation:slideIn 0.3s ease}
 .toast-icon{font-size:16px}
 @keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* Premium Visual Enhancements & Glows */
+.stat-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2), 0 0 15px rgba(94, 23, 235, 0.1);
+  border-color: rgba(94, 23, 235, 0.25);
+}
+.section-card {
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.section-card:hover {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+/* Dashboard Grid Layout */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 24px;
+}
+@media (max-width: 900px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Collapsible Sidebar Styles */
+.sidebar {
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sidebar.collapsed {
+  width: 72px;
+}
+.sidebar.collapsed .sidebar-brand,
+.sidebar.collapsed .sidebar-badge,
+.sidebar.collapsed .nav-badge,
+.sidebar.collapsed .nav-text,
+.sidebar.collapsed .user-info {
+  display: none !important;
+}
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 12px;
+  margin: 4px 0;
+}
+.sidebar.collapsed .sidebar-header {
+  justify-content: center;
+  padding: 20px 10px;
+}
+.sidebar.collapsed .logo-icon-sm {
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+}
+.sidebar.collapsed .sidebar-logo {
+  justify-content: center;
+}
+.sidebar.collapsed .sidebar-footer {
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 10px;
+}
+.sidebar.collapsed .user-avatar-sm {
+  width: 36px;
+  height: 36px;
+}
+
+/* Floating Bulk Actions Bar (Glassmorphic) */
+.floating-bulk-actions {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translate(-50%, 100px);
+  background: rgba(26, 26, 36, 0.85);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(94, 23, 235, 0.25);
+  padding: 12px 28px;
+  border-radius: 40px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  box-shadow: 0 10px 40px rgba(94, 23, 235, 0.2), 0 0 20px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+  pointer-events: none;
+}
+.floating-bulk-actions.show {
+  transform: translate(-50%, 0);
+  opacity: 1;
+  pointer-events: all;
+}
+#floating-selected-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.2px;
+}
+

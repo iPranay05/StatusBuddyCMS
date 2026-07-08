@@ -32,6 +32,10 @@ let currentUser = null;
 let currentProfile = null;
 let allCategories = [];
 let allStatuses = [];
+let categoryChart = null; // New chart variable
+let currentPage = 1;      // Pagination
+const itemsPerPage = 10;   // Pagination
+let selectedStatusIds = new Set(); // Bulk actions
 
 // Initialize
 async function init() {
@@ -137,7 +141,7 @@ navItems.forEach(item => {
 });
 
 sidebarToggle.addEventListener('click', () => {
-  sidebar.classList.toggle('hidden');
+  sidebar.classList.toggle('collapsed');
 });
 
 // ══════════════════════════════════════════
@@ -175,6 +179,9 @@ async function loadDashboardData() {
   if (qsFeatured) qsFeatured.textContent = allStatuses.filter(s => s.is_featured).length;
   const qsPremium = document.getElementById('qs-premium');
   if (qsPremium) qsPremium.textContent = allStatuses.filter(s => s.is_premium).length;
+
+  // Render Chart
+  renderCategoryBreakdownChart();
 
   const recentList = document.getElementById('recent-statuses');
   recentList.innerHTML = '';
@@ -224,14 +231,13 @@ async function loadStatuses() {
   renderStatusesTable();
 }
 
-function renderStatusesTable() {
-  const tbody = document.getElementById('statuses-tbody');
+function getFilteredStatuses() {
   const searchQuery = document.getElementById('statuses-search').value.toLowerCase();
   const filterCat = document.getElementById('filter-category').value;
   const filterMedia = document.getElementById('filter-media').value;
   const filterFlags = document.getElementById('filter-flags').value;
 
-  let filtered = allStatuses.filter(s => {
+  return allStatuses.filter(s => {
     if (searchQuery && !s.content.toLowerCase().includes(searchQuery)) return false;
     if (filterCat && s.category_id !== filterCat) return false;
     if (filterMedia && s.media_type !== filterMedia) return false;
@@ -240,19 +246,35 @@ function renderStatusesTable() {
     if (filterFlags === 'free' && s.is_premium) return false;
     return true;
   });
+}
+
+function renderStatusesTable() {
+  const tbody = document.getElementById('statuses-tbody');
+  const filtered = getFilteredStatuses();
 
   tbody.innerHTML = '';
 
   if (filtered.length === 0) {
     tbody.innerHTML = '<tr><td colspan="9" class="loading-cell">No statuses found matching filters.</td></tr>';
     document.getElementById('pagination-info').textContent = `0 statuses`;
+    document.getElementById('prev-page').disabled = true;
+    document.getElementById('next-page').disabled = true;
+    document.getElementById('page-indicator').textContent = 'Page 1 of 1';
     return;
   }
 
-  filtered.forEach(status => {
+  // True Pagination slicing
+  const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
+  if (currentPage > totalPages) currentPage = totalPages;
+  
+  const startIdx = (currentPage - 1) * itemsPerPage;
+  const paginated = filtered.slice(startIdx, startIdx + itemsPerPage);
+
+  paginated.forEach(status => {
+    const isChecked = selectedStatusIds.has(status.id);
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><input type="checkbox" class="checkbox status-cb" value="${status.id}" /></td>
+      <td><input type="checkbox" class="checkbox status-cb" value="${status.id}" ${isChecked ? 'checked' : ''} onchange="toggleStatusSelection(this, '${status.id}')" /></td>
       <td>
         <div class="td-content" title="${status.content.replace(/"/g, '&quot;')}">${status.content}</div>
       </td>
@@ -278,13 +300,32 @@ function renderStatusesTable() {
     tbody.appendChild(tr);
   });
 
-  document.getElementById('pagination-info').textContent = `${filtered.length} statuses`;
+  // Update pagination info
+  const startNum = startIdx + 1;
+  const endNum = Math.min(startIdx + itemsPerPage, filtered.length);
+  document.getElementById('pagination-info').textContent = `Showing ${startNum}-${endNum} of ${filtered.length} statuses`;
+  document.getElementById('page-indicator').textContent = `Page ${currentPage} of ${totalPages}`;
+  document.getElementById('prev-page').disabled = currentPage === 1;
+  document.getElementById('next-page').disabled = currentPage === totalPages;
+
+  updateSelectAllCheckboxState();
 }
 
-document.getElementById('statuses-search').addEventListener('input', renderStatusesTable);
-document.getElementById('filter-category').addEventListener('change', renderStatusesTable);
-document.getElementById('filter-media').addEventListener('change', renderStatusesTable);
-document.getElementById('filter-flags').addEventListener('change', renderStatusesTable);
+// Bind search and filter change listeners, resetting to page 1
+const filterInputs = ['statuses-search', 'filter-category', 'filter-media', 'filter-flags'];
+filterInputs.forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('input', () => {
+      currentPage = 1;
+      renderStatusesTable();
+    });
+    el.addEventListener('change', () => {
+      currentPage = 1;
+      renderStatusesTable();
+    });
+  }
+});
 
 // ══════════════════════════════════════════
 // UPLOAD STATUS PAGE
@@ -522,14 +563,20 @@ window.editCategory = (id) => {
 };
 
 window.deleteCategory = async (id) => {
-  if (confirm('Are you sure you want to delete this category? Statuses in this category will become uncategorized.')) {
-    const { error } = await supabaseClient.from('categories').delete().eq('id', id);
-    if (error) alert('Error: ' + error.message);
-    else {
-      showToast('Category deleted');
-      loadCategories();
+  openConfirmModal({
+    title: 'Delete Category',
+    message: 'Are you sure you want to delete this category? Statuses in this category will become uncategorized.',
+    confirmText: 'Delete',
+    onConfirm: async () => {
+      const { error } = await supabaseClient.from('categories').delete().eq('id', id);
+      if (error) {
+        showToast('Error: ' + error.message, true);
+      } else {
+        showToast('Category deleted');
+        loadCategories();
+      }
     }
-  }
+  });
 };
 
 // ══════════════════════════════════════════
@@ -566,38 +613,22 @@ window.editStatus = (id) => {
   document.getElementById('submit-btn-text').textContent = 'Update Status';
 };
 
-let statusToDelete = null;
 window.confirmDeleteStatus = (id) => {
-  statusToDelete = id;
-  document.getElementById('delete-modal').classList.remove('hidden');
+  openConfirmModal({
+    title: 'Delete Status',
+    message: 'Are you sure you want to delete this status? This cannot be undone.',
+    confirmText: 'Delete',
+    onConfirm: async () => {
+      const { error } = await supabaseClient.from('statuses').delete().eq('id', id);
+      if (error) {
+        showToast('Failed to delete status', true);
+      } else {
+        showToast('Status deleted');
+        loadStatuses();
+      }
+    }
+  });
 };
-
-document.getElementById('delete-modal-close').addEventListener('click', () => {
-  document.getElementById('delete-modal').classList.add('hidden');
-});
-document.getElementById('delete-cancel-btn').addEventListener('click', () => {
-  document.getElementById('delete-modal').classList.add('hidden');
-});
-document.getElementById('delete-confirm-btn').addEventListener('click', async () => {
-  if (!statusToDelete) return;
-  
-  const btn = document.getElementById('delete-confirm-btn');
-  btn.textContent = 'Deleting...';
-  btn.disabled = true;
-
-  const { error } = await supabaseClient.from('statuses').delete().eq('id', statusToDelete);
-  
-  btn.textContent = 'Delete';
-  btn.disabled = false;
-  document.getElementById('delete-modal').classList.add('hidden');
-
-  if (error) {
-    showToast('Failed to delete status', true);
-  } else {
-    showToast('Status deleted');
-    loadStatuses();
-  }
-});
 
 // ══════════════════════════════════════════
 // MEDIA UPLOAD
@@ -751,6 +782,238 @@ function showToast(message, isError = false) {
 window.copyToClipboard = (text) => {
   navigator.clipboard.writeText(text).then(() => {
     showToast('URL copied to clipboard!');
+  });
+}
+
+// ══════════════════════════════════════════
+// DYNAMIC CONFIRMATION MODAL HELPER
+// ══════════════════════════════════════════
+function openConfirmModal({ title, message, onConfirm, confirmText = 'Delete', isDanger = true }) {
+  const modal = document.getElementById('delete-modal');
+  if (!modal) return;
+
+  const titleEl = modal.querySelector('.modal-header h3');
+  const msgEl = modal.querySelector('#delete-modal-msg');
+  const confirmBtn = modal.querySelector('#delete-confirm-btn');
+  const cancelBtn = modal.querySelector('#delete-cancel-btn');
+  const closeBtn = modal.querySelector('#delete-modal-close');
+
+  titleEl.textContent = title;
+  msgEl.textContent = message;
+  confirmBtn.textContent = confirmText;
+
+  if (isDanger) {
+    confirmBtn.className = 'btn btn-danger';
+  } else {
+    confirmBtn.className = 'btn btn-primary';
+  }
+
+  // Clone confirm button to remove existing event listeners
+  const newConfirmBtn = confirmBtn.cloneNode(true);
+  confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+
+  newConfirmBtn.addEventListener('click', async () => {
+    newConfirmBtn.disabled = true;
+    newConfirmBtn.textContent = 'Processing...';
+    await onConfirm();
+    newConfirmBtn.disabled = false;
+    modal.classList.add('hidden');
+  });
+
+  const closeModal = () => modal.classList.add('hidden');
+  cancelBtn.onclick = closeModal;
+  closeBtn.onclick = closeModal;
+
+  modal.classList.remove('hidden');
+}
+
+// ══════════════════════════════════════════
+// PAGINATION CONTROLS
+// ══════════════════════════════════════════
+document.getElementById('prev-page').addEventListener('click', () => {
+  if (currentPage > 1) {
+    currentPage--;
+    renderStatusesTable();
+  }
+});
+
+document.getElementById('next-page').addEventListener('click', () => {
+  const filtered = getFilteredStatuses();
+  const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
+  if (currentPage < totalPages) {
+    currentPage++;
+    renderStatusesTable();
+  }
+});
+
+// ══════════════════════════════════════════
+// BULK ACTIONS & SELECTION
+// ══════════════════════════════════════════
+window.toggleStatusSelection = (checkbox, id) => {
+  if (checkbox.checked) {
+    selectedStatusIds.add(id);
+  } else {
+    selectedStatusIds.delete(id);
+  }
+  updateSelectAllCheckboxState();
+  updateBulkBarState();
+};
+
+function updateSelectAllCheckboxState() {
+  const selectAllCheckbox = document.getElementById('select-all');
+  if (!selectAllCheckbox) return;
+
+  const filtered = getFilteredStatuses();
+  const startIdx = (currentPage - 1) * itemsPerPage;
+  const paginated = filtered.slice(startIdx, startIdx + itemsPerPage);
+
+  if (paginated.length === 0) {
+    selectAllCheckbox.checked = false;
+    return;
+  }
+
+  const allChecked = paginated.every(s => selectedStatusIds.has(s.id));
+  selectAllCheckbox.checked = allChecked;
+}
+
+function updateBulkBarState() {
+  const bar = document.getElementById('floating-bulk-bar');
+  const countEl = document.getElementById('floating-selected-count');
+  if (!bar || !countEl) return;
+
+  if (selectedStatusIds.size > 0) {
+    countEl.textContent = `${selectedStatusIds.size} ${selectedStatusIds.size === 1 ? 'status' : 'statuses'} selected`;
+    bar.classList.add('show');
+  } else {
+    bar.classList.remove('show');
+  }
+}
+
+document.getElementById('select-all').addEventListener('change', (e) => {
+  const filtered = getFilteredStatuses();
+  const startIdx = (currentPage - 1) * itemsPerPage;
+  const paginated = filtered.slice(startIdx, startIdx + itemsPerPage);
+
+  if (e.target.checked) {
+    paginated.forEach(s => selectedStatusIds.add(s.id));
+  } else {
+    paginated.forEach(s => selectedStatusIds.delete(s.id));
+  }
+
+  // Sync visual checkboxes
+  const checkboxes = document.querySelectorAll('.status-cb');
+  checkboxes.forEach(cb => {
+    cb.checked = selectedStatusIds.has(cb.value);
+  });
+
+  updateBulkBarState();
+});
+
+document.getElementById('bulk-clear-btn').addEventListener('click', () => {
+  selectedStatusIds.clear();
+  const checkboxes = document.querySelectorAll('.status-cb');
+  checkboxes.forEach(cb => cb.checked = false);
+  const selectAll = document.getElementById('select-all');
+  if (selectAll) selectAll.checked = false;
+  updateBulkBarState();
+});
+
+document.getElementById('floating-bulk-delete-btn').addEventListener('click', () => {
+  if (selectedStatusIds.size === 0) return;
+  const idsArray = Array.from(selectedStatusIds);
+
+  openConfirmModal({
+    title: 'Delete Selected Statuses',
+    message: `Are you sure you want to delete the ${idsArray.length} selected statuses? This action is permanent and cannot be undone.`,
+    confirmText: `Delete ${idsArray.length} Statuses`,
+    onConfirm: async () => {
+      const { error } = await supabaseClient.from('statuses').delete().in('id', idsArray);
+      if (error) {
+        showToast('Failed to delete statuses: ' + error.message, true);
+      } else {
+        showToast(`Successfully deleted ${idsArray.length} statuses`);
+        selectedStatusIds.clear();
+        const selectAll = document.getElementById('select-all');
+        if (selectAll) selectAll.checked = false;
+        updateBulkBarState();
+        loadStatuses();
+      }
+    }
+  });
+});
+
+// ══════════════════════════════════════════
+// CHART.JS DASHBOARD GRAPH
+// ══════════════════════════════════════════
+function renderCategoryBreakdownChart() {
+  const ctx = document.getElementById('category-chart');
+  if (!ctx) return;
+
+  // Aggregate statuses by category name
+  const catCounts = {};
+  allStatuses.forEach(s => {
+    const name = s.categories?.name || 'Uncategorized';
+    catCounts[name] = (catCounts[name] || 0) + 1;
+  });
+
+  const labels = Object.keys(catCounts);
+  const data = Object.values(catCounts);
+
+  if (labels.length === 0) {
+    ctx.style.display = 'none';
+    return;
+  }
+  ctx.style.display = 'block';
+
+  if (categoryChart) {
+    categoryChart.destroy();
+  }
+
+  // High premium color palette matching design tokens
+  const colors = [
+    '#5E17EB', // var(--purple)
+    '#7C3AED', // var(--purple-light)
+    '#FFB800', // var(--gold)
+    '#22C55E', // var(--green)
+    '#3B82F6', // var(--blue)
+    '#EF4444', // var(--red)
+    '#EC4899', // Pink
+    '#14B8A6', // Teal
+    '#F59E0B', // Orange
+    '#9333EA'  // Deep purple
+  ];
+
+  categoryChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: data,
+        backgroundColor: colors.slice(0, labels.length),
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.08)'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: {
+            color: '#9999AA',
+            font: {
+              family: "'Inter', sans-serif",
+              size: 11,
+              weight: '500'
+            },
+            boxWidth: 12,
+            padding: 10
+          }
+        }
+      },
+      cutout: '70%'
+    }
   });
 }
 
