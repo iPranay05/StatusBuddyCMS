@@ -1,0 +1,8 @@
+{
+  "name": "statusbuddy-cms",
+  "version": "1.0.0",
+  "description": "Content Management System for StatusBuddy",
+  "scripts": {
+    "build": "node generate-env.js"
+  }
+}
