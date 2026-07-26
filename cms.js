@@ -131,8 +131,10 @@ function navigateTo(pageId) {
   const targetNav = document.querySelector(`.nav-item[data-page="${pageId}"]`);
   if (targetNav) {
     targetNav.classList.add('active');
-    pageTitle.textContent = targetNav.textContent.trim();
+    const textSpan = targetNav.querySelector('.nav-text');
+    pageTitle.textContent = textSpan ? textSpan.textContent.trim() : targetNav.textContent.trim();
   }
+
 
   if (pageId === 'dashboard') loadDashboardData();
   else if (pageId === 'statuses') loadStatuses();
