@@ -143,6 +143,7 @@ function navigateTo(pageId) {
   else if (pageId === 'users') loadUsers();
   else if (pageId === 'analytics') loadAnalytics();
   else if (pageId === 'push') loadPushPage();
+  else if (pageId === 'abtests') loadABTests();
 }
 
 navItems.forEach(item => {
@@ -1377,6 +1378,124 @@ function renderUserGrowthChart(profiles) {
     }
   });
 }
+
+// ══════════════════════════════════════════
+// A/B TESTS PAGE
+// ══════════════════════════════════════════
+async function loadABTests() {
+  const tbody = document.getElementById('abtests-tbody');
+  tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">Loading tests...</td></tr>';
+
+  const { data, error } = await supabaseClient
+    .from('ab_tests')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    if (error.code === '42P01') {
+      tbody.innerHTML = `<tr><td colspan="7" class="loading-cell">Table 'ab_tests' not found. Please run the SQL script in Supabase first.</td></tr>`;
+    } else {
+      tbody.innerHTML = `<tr><td colspan="7" class="loading-cell">Error: ${error.message}</td></tr>`;
+    }
+    return;
+  }
+
+  if (data.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" class="loading-cell">No A/B tests found. Create one to get started!</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = '';
+  data.forEach(t => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${t.name}</strong></td>
+      <td>${t.description || '—'}</td>
+      <td>
+        <label class="toggle-switch">
+          <input type="checkbox" ${t.is_active ? 'checked' : ''} onchange="toggleABTest('${t.id}', this.checked)">
+          <span class="slider"></span>
+        </label>
+        <span style="font-size:12px;margin-left:8px">${t.is_active ? 'Active' : 'Paused'}</span>
+      </td>
+      <td><pre style="margin:0;font-size:11px;background:var(--surface);padding:4px;border-radius:4px;max-width:150px;overflow:hidden;text-overflow:ellipsis">${JSON.stringify(t.variant_a)}</pre></td>
+      <td><pre style="margin:0;font-size:11px;background:var(--surface);padding:4px;border-radius:4px;max-width:150px;overflow:hidden;text-overflow:ellipsis">${JSON.stringify(t.variant_b)}</pre></td>
+      <td>${new Date(t.created_at).toLocaleDateString()}</td>
+      <td>
+        <button class="btn btn-sm btn-danger" onclick="deleteABTest('${t.id}')">Delete</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+window.toggleABTest = async (id, isActive) => {
+  const { error } = await supabaseClient.from('ab_tests').update({ is_active: isActive }).eq('id', id);
+  if (error) {
+    showToast('Failed to update status', true);
+    loadABTests(); // reload to revert toggle
+  } else {
+    showToast(isActive ? 'Test activated!' : 'Test paused.');
+    loadABTests();
+  }
+};
+
+window.deleteABTest = async (id) => {
+  if (!confirm('Delete this A/B test permanently?')) return;
+  const { error } = await supabaseClient.from('ab_tests').delete().eq('id', id);
+  if (error) {
+    showToast('Failed to delete', true);
+  } else {
+    showToast('Test deleted.');
+    loadABTests();
+  }
+};
+
+// Create test modal logic
+const abModal = document.getElementById('abtest-modal');
+const btnCreateTest = document.getElementById('create-test-btn');
+const btnCloseTest = document.getElementById('abtest-modal-close-btn');
+
+if (btnCreateTest) btnCreateTest.addEventListener('click', () => {
+  abModal.classList.remove('hidden');
+  document.getElementById('abtest-form').reset();
+});
+if (btnCloseTest) btnCloseTest.addEventListener('click', () => abModal.classList.add('hidden'));
+
+document.getElementById('abtest-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  
+  const name = document.getElementById('ab-name').value;
+  const desc = document.getElementById('ab-desc').value;
+  let varA, varB;
+  
+  try {
+    varA = JSON.parse(document.getElementById('ab-variant-a').value);
+    varB = JSON.parse(document.getElementById('ab-variant-b').value);
+  } catch (err) {
+    alert('Invalid JSON in variants. Please fix before saving.');
+    return;
+  }
+
+  const btn = document.getElementById('abtest-save-btn');
+  btn.textContent = 'Saving...';
+  btn.disabled = true;
+
+  const { error } = await supabaseClient.from('ab_tests').insert({
+    name, description: desc, variant_a: varA, variant_b: varB, is_active: false
+  });
+
+  btn.textContent = 'Save Test';
+  btn.disabled = false;
+
+  if (error) {
+    alert('Error saving test: ' + error.message);
+  } else {
+    abModal.classList.add('hidden');
+    showToast('A/B Test created successfully!');
+    loadABTests();
+  }
+});
 
 // Run init
 init();

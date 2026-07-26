@@ -101,6 +101,10 @@
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
           <span class="nav-text">Push Notify</span>
         </a>
+        <a href="#" class="nav-item" data-page="abtests">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 22V12h6v10"/><path d="M2 10.6L12 2l10 8.6"/></svg>
+          <span class="nav-text">A/B Tests</span>
+        </a>
       </nav>
 
       <div class="sidebar-footer">
@@ -648,7 +652,74 @@
       </div>
     </div>
 
+    <!-- PAGE: A/B TESTS -->
+    <div id="page-abtests" class="page">
+      <div class="page-header">
+        <h2 class="page-heading">A/B Testing Engine</h2>
+        <p class="page-desc">Manage experiments to optimize your app's conversions and engagement.</p>
+        <button class="btn btn-primary" id="create-test-btn">+ Create Test</button>
+      </div>
+
+      <div class="section-card">
+        <div class="section-card-header">
+          <h3>Active & Past Tests</h3>
+          <button class="btn btn-sm btn-ghost" onclick="loadABTests()">↻ Refresh</button>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Test Name</th>
+                <th>Description</th>
+                <th>Status</th>
+                <th>Variant A</th>
+                <th>Variant B</th>
+                <th>Created At</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="abtests-tbody">
+              <tr><td colspan="7" class="loading-cell">Loading tests...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
   </div><!-- /#app -->
+
+  <!-- A/B TEST CREATE MODAL -->
+  <div id="abtest-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Create A/B Test</h3>
+        <button class="modal-close" id="abtest-modal-close-btn">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="abtest-form">
+          <div class="form-group">
+            <label class="form-label">Test Name <span class="required">*</span></label>
+            <input type="text" id="ab-name" class="form-input" placeholder="e.g. Pricing Page Test" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Description</label>
+            <textarea id="ab-desc" class="form-textarea" rows="2" placeholder="e.g. Testing $2.99 vs $4.99"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Variant A (JSON Payload) <span class="required">*</span></label>
+            <textarea id="ab-variant-a" class="form-textarea" rows="3" placeholder='{"price": 2.99, "color": "blue"}' required></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Variant B (JSON Payload) <span class="required">*</span></label>
+            <textarea id="ab-variant-b" class="form-textarea" rows="3" placeholder='{"price": 4.99, "color": "red"}' required></textarea>
+          </div>
+          <div class="form-actions" style="margin-top:15px">
+            <button type="submit" class="btn btn-primary" id="abtest-save-btn">Save Test</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 
   <!-- EDIT MODAL -->
   <div id="edit-modal" class="modal-overlay hidden">
