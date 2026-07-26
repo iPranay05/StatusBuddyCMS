@@ -115,11 +115,18 @@ function showLoginScreen() {
 // NAVIGATION
 // ══════════════════════════════════════════
 function navigateTo(pageId) {
-  pages.forEach(p => p.classList.remove('active'));
+  // Handle all pages - both old .page divs and new main pages
+  document.querySelectorAll('.page').forEach(p => {
+    p.classList.remove('active');
+    if (p.tagName === 'MAIN') p.style.display = 'none';
+  });
   navItems.forEach(n => n.classList.remove('active'));
 
   const targetPage = document.getElementById(`page-${pageId}`);
-  if (targetPage) targetPage.classList.add('active');
+  if (targetPage) {
+    targetPage.classList.add('active');
+    if (targetPage.tagName === 'MAIN') targetPage.style.display = '';
+  }
 
   const targetNav = document.querySelector(`.nav-item[data-page="${pageId}"]`);
   if (targetNav) {
@@ -131,6 +138,8 @@ function navigateTo(pageId) {
   else if (pageId === 'statuses') loadStatuses();
   else if (pageId === 'categories') loadCategories();
   else if (pageId === 'media') loadMediaLibrary();
+  else if (pageId === 'users') loadUsers();
+  else if (pageId === 'push') loadPushPage();
 }
 
 navItems.forEach(item => {
@@ -1202,3 +1211,268 @@ function renderCategoryBreakdownChart() {
 
 // Run init
 init();
+
+// ══════════════════════════════════════════
+// USERS PAGE
+// ══════════════════════════════════════════
+let allUsers = [];
+
+async function loadUsers() {
+  document.getElementById('users-tbody').innerHTML = '<tr><td colspan="8" class="loading-cell">Loading users...</td></tr>';
+
+  const { data, error } = await supabaseClient
+    .from('profiles')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    document.getElementById('users-tbody').innerHTML = `<tr><td colspan="8" class="loading-cell">Error: ${error.message}</td></tr>`;
+    return;
+  }
+
+  allUsers = data;
+
+  // Update nav badge
+  const badge = document.getElementById('nav-badge-users');
+  if (badge) badge.textContent = data.length;
+
+  // Stats
+  const now = new Date();
+  const subscribed = data.filter(u => u.is_subscribed);
+  const onTrial = data.filter(u => !u.is_subscribed && u.trial_ends_at && new Date(u.trial_ends_at) > now);
+  const free = data.filter(u => !u.is_subscribed && (!u.trial_ends_at || new Date(u.trial_ends_at) <= now));
+  const admins = data.filter(u => u.role === 'admin' || u.role === 'editor');
+
+  document.getElementById('us-total').textContent = data.length;
+  document.getElementById('us-subscribed').textContent = subscribed.length;
+  document.getElementById('us-trial').textContent = onTrial.length;
+  document.getElementById('us-free').textContent = free.length;
+  document.getElementById('us-admins').textContent = admins.length;
+
+  renderUsersTable();
+}
+
+function renderUsersTable() {
+  const search = document.getElementById('users-search').value.toLowerCase();
+  const roleFilter = document.getElementById('users-filter-role').value;
+  const subFilter = document.getElementById('users-filter-sub').value;
+  const now = new Date();
+
+  const filtered = allUsers.filter(u => {
+    const name = (u.display_name || '').toLowerCase();
+    if (search && !name.includes(search)) return false;
+    if (roleFilter && u.role !== roleFilter) return false;
+    if (subFilter === 'subscribed' && !u.is_subscribed) return false;
+    if (subFilter === 'trial') {
+      const inTrial = !u.is_subscribed && u.trial_ends_at && new Date(u.trial_ends_at) > now;
+      if (!inTrial) return false;
+    }
+    if (subFilter === 'free') {
+      const isFree = !u.is_subscribed && (!u.trial_ends_at || new Date(u.trial_ends_at) <= now);
+      if (!isFree) return false;
+    }
+    return true;
+  });
+
+  const tbody = document.getElementById('users-tbody');
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="loading-cell">No users found.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = '';
+  filtered.forEach(u => {
+    const isTrialing = !u.is_subscribed && u.trial_ends_at && new Date(u.trial_ends_at) > now;
+    const subLabel = u.is_subscribed
+      ? `<span class="badge badge-gold">Subscribed</span>`
+      : isTrialing
+        ? `<span class="badge badge-purple">Trial</span>`
+        : `<span class="badge badge-gray">Free</span>`;
+
+    const roleLabel = u.role === 'admin'
+      ? `<span class="badge badge-green">Admin</span>`
+      : u.role === 'editor'
+        ? `<span class="badge badge-purple">Editor</span>`
+        : `<span class="badge badge-gray">User</span>`;
+
+    const trialDate = u.trial_ends_at ? new Date(u.trial_ends_at).toLocaleDateString() : '—';
+    const subEndDate = u.subscription_ends_at ? new Date(u.subscription_ends_at).toLocaleDateString() : '—';
+    const joinDate = new Date(u.created_at).toLocaleDateString();
+
+    const avatar = u.avatar_url
+      ? `<img src="${u.avatar_url}" class="user-avatar-sm" style="width:28px;height:28px;border-radius:50%;object-fit:cover" />`
+      : `<div class="user-avatar-sm" style="width:28px;height:28px;border-radius:50%;background:var(--purple);display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">${(u.display_name || '?')[0].toUpperCase()}</div>`;
+
+    const isAdmin = u.role === 'admin' || u.role === 'editor';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><div style="display:flex;align-items:center;gap:8px">${avatar}<span>${u.display_name || '<em style="color:var(--text2)">No name</em>'}</span></div></td>
+      <td>${u.state || '—'}</td>
+      <td>${roleLabel}</td>
+      <td>${subLabel}</td>
+      <td>${trialDate}</td>
+      <td>${subEndDate}</td>
+      <td>${joinDate}</td>
+      <td>
+        <button class="btn btn-sm ${isAdmin ? 'btn-danger' : 'btn-ghost'}" onclick="toggleUserRole('${u.id}', '${u.role}')">
+          ${isAdmin ? '🔒 Revoke Admin' : '🔑 Make Admin'}
+        </button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+window.toggleUserRole = async (userId, currentRole) => {
+  const isAdmin = currentRole === 'admin' || currentRole === 'editor';
+  const newRole = isAdmin ? 'user' : 'admin';
+  const confirm1 = confirm(isAdmin
+    ? 'Remove admin access from this user?'
+    : 'Grant admin access to this user? They will be able to log into the CMS.');
+  if (!confirm1) return;
+
+  const { error } = await supabaseClient
+    .from('profiles')
+    .update({ role: newRole })
+    .eq('id', userId);
+
+  if (error) {
+    showToast(`Failed: ${error.message}`, true);
+  } else {
+    showToast(isAdmin ? 'Admin access removed' : 'Admin access granted ✅');
+    loadUsers();
+  }
+};
+
+['users-search', 'users-filter-role', 'users-filter-sub'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('input', renderUsersTable);
+    el.addEventListener('change', renderUsersTable);
+  }
+});
+
+// ══════════════════════════════════════════
+// PUSH NOTIFICATIONS PAGE
+// ══════════════════════════════════════════
+function loadPushPage() {
+  // Nothing to load initially — form is ready
+}
+
+document.getElementById('push-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const title = document.getElementById('push-title').value.trim();
+  const body = document.getElementById('push-body').value.trim();
+  const audience = document.getElementById('push-audience').value;
+  const deeplink = document.getElementById('push-deeplink').value.trim();
+  const btn = document.getElementById('push-send-btn');
+  const spinner = document.getElementById('push-spinner');
+  const btnText = document.getElementById('push-btn-text');
+  const errorEl = document.getElementById('push-error');
+  const successEl = document.getElementById('push-success');
+
+  errorEl.classList.add('hidden');
+  successEl.classList.add('hidden');
+  btn.disabled = true;
+  spinner.classList.remove('hidden');
+  btnText.textContent = 'Sending...';
+
+  // Fetch push tokens from Supabase
+  let query = supabaseClient.from('push_tokens').select('token, user_id, profiles(is_subscribed, trial_ends_at)');
+
+  const { data: tokenRows, error: tokenError } = await query;
+
+  if (tokenError) {
+    errorEl.textContent = `Could not load push tokens: ${tokenError.message}. Make sure the push_tokens table exists.`;
+    errorEl.classList.remove('hidden');
+    btn.disabled = false;
+    spinner.classList.add('hidden');
+    btnText.textContent = '🔔 Send Notification';
+    return;
+  }
+
+  if (!tokenRows || tokenRows.length === 0) {
+    errorEl.textContent = 'No push tokens found. Make sure your app is saving user tokens to the push_tokens table.';
+    errorEl.classList.remove('hidden');
+    btn.disabled = false;
+    spinner.classList.add('hidden');
+    btnText.textContent = '🔔 Send Notification';
+    return;
+  }
+
+  // Filter by audience
+  const now = new Date();
+  let targets = tokenRows.filter(row => {
+    if (audience === 'all') return true;
+    const prof = row.profiles;
+    if (!prof) return true;
+    if (audience === 'subscribed') return prof.is_subscribed;
+    if (audience === 'free') return !prof.is_subscribed && (!prof.trial_ends_at || new Date(prof.trial_ends_at) <= now);
+    return true;
+  });
+
+  const tokens = [...new Set(targets.map(r => r.token).filter(Boolean))];
+
+  if (tokens.length === 0) {
+    errorEl.textContent = 'No tokens for the selected audience.';
+    errorEl.classList.remove('hidden');
+    btn.disabled = false;
+    spinner.classList.add('hidden');
+    btnText.textContent = '🔔 Send Notification';
+    return;
+  }
+
+  // Build Expo push messages (batch of 100)
+  const messages = tokens.map(token => ({
+    to: token,
+    title,
+    body,
+    ...(deeplink ? { data: { url: deeplink } } : {})
+  }));
+
+  let successCount = 0;
+  let failCount = 0;
+
+  // Send in chunks of 100 (Expo limit)
+  for (let i = 0; i < messages.length; i += 100) {
+    const chunk = messages.slice(i, i + 100);
+    try {
+      const res = await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(chunk)
+      });
+      const json = await res.json();
+      if (json.data) {
+        json.data.forEach(r => {
+          if (r.status === 'ok') successCount++;
+          else failCount++;
+        });
+      }
+    } catch (err) {
+      failCount += chunk.length;
+    }
+  }
+
+  btn.disabled = false;
+  spinner.classList.add('hidden');
+  btnText.textContent = '🔔 Send Notification';
+
+  const msg = `✅ Sent to ${successCount} device${successCount !== 1 ? 's' : ''}${failCount > 0 ? ` (${failCount} failed)` : ''}`;
+  successEl.textContent = msg;
+  successEl.classList.remove('hidden');
+  setTimeout(() => successEl.classList.add('hidden'), 5000);
+
+  // Add to session history
+  const historyList = document.getElementById('push-history-list');
+  const item = document.createElement('div');
+  item.style.cssText = 'padding:8px 0;border-bottom:1px solid var(--border);font-size:12px';
+  item.innerHTML = `<strong>${title}</strong><br><span style="color:var(--text2)">${body.substring(0, 60)}${body.length > 60 ? '…' : ''}</span><br><span style="color:var(--green)">${msg}</span>`;
+  if (historyList.querySelector('p')) historyList.innerHTML = '';
+  historyList.prepend(item);
+
+  // Optionally clear form
+  document.getElementById('push-form').reset();
+});
+
