@@ -381,6 +381,81 @@ function updateMediaPreview(url, type) {
   }
 }
 
+// ══════════════════════════════════════════
+// INLINE MEDIA UPLOAD (on Upload Status page)
+// ══════════════════════════════════════════
+document.getElementById('inline-upload-trigger').addEventListener('click', () => {
+  document.getElementById('inline-file-input').click();
+});
+
+document.getElementById('inline-file-input').addEventListener('change', async function () {
+  const file = this.files[0];
+  if (!file) return;
+
+  const mediaTypeSelect = document.getElementById('field-media-type');
+  const urlInput = document.getElementById('field-image-url');
+  const progress = document.getElementById('inline-upload-progress');
+  const bar = document.getElementById('inline-upload-bar');
+  const pct = document.getElementById('inline-upload-pct');
+  const filename = document.getElementById('inline-upload-filename');
+  const trigger = document.getElementById('inline-upload-trigger');
+
+  // Auto-set media type based on file
+  if (file.type.startsWith('video/')) {
+    mediaTypeSelect.value = 'video';
+  } else {
+    mediaTypeSelect.value = 'image';
+  }
+  // Make sure URL group is visible
+  document.getElementById('media-url-group').classList.remove('hidden');
+
+  // Show progress
+  filename.textContent = file.name;
+  pct.textContent = 'Uploading...';
+  bar.style.width = '40%';
+  bar.style.background = 'var(--accent)';
+  progress.classList.remove('hidden');
+  trigger.disabled = true;
+
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+  const filePath = `uploads/${fileName}`;
+
+  const { data, error } = await supabaseClient.storage
+    .from('status-media')
+    .upload(filePath, file);
+
+  if (error) {
+    pct.textContent = 'Failed ❌';
+    bar.style.width = '100%';
+    bar.style.background = 'var(--red)';
+    showToast(`Upload failed: ${error.message}`, true);
+  } else {
+    const { data: urlData } = supabaseClient.storage.from('status-media').getPublicUrl(filePath);
+    const publicUrl = urlData.publicUrl;
+
+    urlInput.value = publicUrl;
+    bar.style.width = '100%';
+    bar.style.background = 'var(--green)';
+    pct.textContent = 'Done ✅';
+    showToast('Media uploaded!');
+
+    // Show preview
+    updateMediaPreview(publicUrl, mediaTypeSelect.value);
+
+    setTimeout(() => {
+      progress.classList.add('hidden');
+      bar.style.width = '0%';
+    }, 3000);
+  }
+
+  trigger.disabled = false;
+  // Reset file input so same file can be picked again
+  this.value = '';
+});
+
+
+
 document.getElementById('clear-form-btn').addEventListener('click', () => {
   statusForm.reset();
   document.getElementById('edit-status-id').value = '';

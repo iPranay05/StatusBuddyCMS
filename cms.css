@@ -152,6 +152,15 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .url-input-row{display:flex;gap:8px}
 .url-input-row .form-input{flex:1}
 
+/* INLINE UPLOAD ZONE (Upload Status page) */
+.inline-upload-zone{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1.5px dashed var(--border);border-radius:10px;transition:border-color 0.2s}
+.inline-upload-zone:hover{border-color:var(--purple)}
+.inline-upload-btn{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.inline-upload-hint{font-size:12px;color:var(--text2)}
+.inline-upload-progress{margin-top:8px}
+.inline-progress-label{display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:4px}
+
+
 /* MEDIA PREVIEW */
 .media-preview{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:18px;max-height:300px}
 .preview-img,.preview-video{width:100%;max-height:300px;object-fit:contain;display:block;background:#000}
