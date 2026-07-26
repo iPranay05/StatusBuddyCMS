@@ -282,7 +282,7 @@ function renderStatusesTable() {
         <span class="badge badge-gray">${status.categories?.name || 'Uncategorized'}</span>
       </td>
       <td>
-        <span class="badge ${status.media_type === 'video' ? 'badge-purple' : status.media_type === 'image' ? 'badge-green' : 'badge-gray'}">${status.media_type}</span>
+        <span class="badge ${status.media_type === 'video' ? 'badge-purple' : status.media_type === 'image' ? 'badge-green' : 'badge-gray'} ${status.image_url ? 'has-preview' : ''}" data-preview-url="${status.image_url || ''}" data-preview-type="${status.media_type}">${status.media_type}</span>
       </td>
       <td>${status.is_featured ? '⭐ Yes' : '-'}</td>
       <td>
@@ -310,6 +310,83 @@ function renderStatusesTable() {
 
   updateSelectAllCheckboxState();
 }
+
+// ══════════════════════════════════════════
+// MEDIA HOVER PREVIEW TOOLTIP
+// ══════════════════════════════════════════
+(function setupHoverPreview() {
+  // Create the floating preview element once
+  const tooltip = document.createElement('div');
+  tooltip.id = 'media-hover-tooltip';
+  tooltip.className = 'media-hover-tooltip hidden';
+  tooltip.innerHTML = `
+    <div class="media-hover-inner">
+      <img id="hover-preview-img" src="" alt="Preview" />
+      <video id="hover-preview-vid" src="" muted loop playsinline></video>
+      <div class="hover-preview-label" id="hover-preview-label"></div>
+    </div>
+  `;
+  document.body.appendChild(tooltip);
+
+  const img = document.getElementById('hover-preview-img');
+  const vid = document.getElementById('hover-preview-vid');
+  const label = document.getElementById('hover-preview-label');
+
+  let hideTimeout;
+
+  document.addEventListener('mouseover', (e) => {
+    const badge = e.target.closest('.has-preview');
+    if (!badge) return;
+
+    const url = badge.dataset.previewUrl;
+    const type = badge.dataset.previewType;
+    if (!url) return;
+
+    clearTimeout(hideTimeout);
+
+    if (type === 'video') {
+      img.style.display = 'none';
+      vid.style.display = 'block';
+      if (vid.src !== url) { vid.src = url; vid.load(); }
+      vid.play().catch(() => {});
+    } else {
+      vid.style.display = 'none';
+      img.style.display = 'block';
+      img.src = url;
+    }
+    label.textContent = type === 'video' ? '🎬 Video preview' : '🖼️ Image preview';
+
+    const rect = badge.getBoundingClientRect();
+    tooltip.classList.remove('hidden');
+
+    // Position: prefer above, fallback below
+    const tH = 220;
+    const topSpace = rect.top;
+    const top = topSpace > tH + 8
+      ? rect.top + window.scrollY - tH - 8
+      : rect.bottom + window.scrollY + 8;
+    const left = Math.min(rect.left + window.scrollX - 60, window.innerWidth - 210);
+    tooltip.style.top = `${Math.max(8, top)}px`;
+    tooltip.style.left = `${Math.max(8, left)}px`;
+  });
+
+  document.addEventListener('mouseout', (e) => {
+    const badge = e.target.closest('.has-preview');
+    if (!badge) return;
+    hideTimeout = setTimeout(() => {
+      tooltip.classList.add('hidden');
+      vid.pause();
+    }, 150);
+  });
+
+  tooltip.addEventListener('mouseover', () => clearTimeout(hideTimeout));
+  tooltip.addEventListener('mouseout', () => {
+    hideTimeout = setTimeout(() => {
+      tooltip.classList.add('hidden');
+      vid.pause();
+    }, 150);
+  });
+})();
 
 // Bind search and filter change listeners, resetting to page 1
 const filterInputs = ['statuses-search', 'filter-category', 'filter-media', 'filter-flags'];
@@ -821,9 +898,11 @@ async function loadMediaLibrary() {
     const url = publicUrlData.publicUrl;
     
     const isVideo = file.metadata?.mimetype?.includes('video') || file.name.endsWith('.mp4');
+    const escapedName = file.name.replace(/'/g, "\\'");
 
     const card = document.createElement('div');
     card.className = 'media-item';
+    card.id = `media-card-${escapedName}`;
     card.innerHTML = `
       ${isVideo 
         ? `<video src="${url}#t=0.1" style="width:100%;height:100%;object-fit:cover;"></video>` 
@@ -832,11 +911,40 @@ async function loadMediaLibrary() {
       <div class="media-item-name">${file.name}</div>
       <div class="media-item-overlay">
         <button class="btn btn-sm btn-primary" onclick="copyToClipboard('${url}')">Copy URL</button>
+        <button class="btn btn-sm btn-danger media-delete-btn" onclick="deleteMediaFile('${escapedName}', this)">🗑 Delete</button>
       </div>
     `;
     mediaLibrary.appendChild(card);
   });
 }
+
+window.deleteMediaFile = async (fileName, btn) => {
+  if (!confirm(`Delete "${fileName}" from storage?\nThis cannot be undone.`)) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Deleting...';
+
+  const { error } = await supabaseClient.storage
+    .from('status-media')
+    .remove([`uploads/${fileName}`]);
+
+  if (error) {
+    showToast(`Failed to delete: ${error.message}`, true);
+    btn.disabled = false;
+    btn.textContent = '🗑 Delete';
+  } else {
+    showToast(`"${fileName}" deleted`);
+    // Remove the card from the DOM without reloading everything
+    const card = btn.closest('.media-item');
+    if (card) {
+      card.style.transition = 'opacity 0.3s, transform 0.3s';
+      card.style.opacity = '0';
+      card.style.transform = 'scale(0.85)';
+      setTimeout(() => card.remove(), 300);
+    }
+  }
+};
+
 
 // ══════════════════════════════════════════
 // UTILS

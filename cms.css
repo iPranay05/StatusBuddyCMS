@@ -214,8 +214,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .media-library{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;padding:16px}
 .media-item{border:1px solid var(--border);border-radius:10px;overflow:hidden;position:relative;aspect-ratio:1;background:var(--bg)}
 .media-item img{width:100%;height:100%;object-fit:cover;display:block}
-.media-item-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.7);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;opacity:0;transition:opacity 0.2s}
+.media-item-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.72);display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px;padding:8px;opacity:0;transition:opacity 0.2s}
 .media-item:hover .media-item-overlay{opacity:1}
+.media-delete-btn{background:rgba(239,68,68,0.85)!important;border-color:transparent!important}
+.media-delete-btn:hover{background:#DC2626!important}
 .media-item-name{position:absolute;bottom:0;left:0;right:0;padding:8px;background:linear-gradient(transparent,rgba(0,0,0,0.8));font-size:10px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* MODAL */
@@ -349,3 +351,42 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
   letter-spacing: 0.2px;
 }
 
+/* MEDIA HOVER PREVIEW TOOLTIP */
+.media-hover-tooltip {
+  position: absolute;
+  z-index: 9999;
+  pointer-events: auto;
+  animation: tooltipFadeIn 0.15s ease;
+}
+.media-hover-tooltip.hidden { display: none; }
+@keyframes tooltipFadeIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.media-hover-inner {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  width: 190px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+.media-hover-inner img,
+.media-hover-inner video {
+  width: 100%;
+  height: 190px;
+  object-fit: cover;
+  display: block;
+}
+.hover-preview-label {
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--text2);
+  text-align: center;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+.has-preview {
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
