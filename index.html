@@ -93,6 +93,10 @@
           <span class="nav-text">Users</span>
           <span class="nav-badge" id="nav-badge-users">0</span>
         </a>
+        <a href="#" class="nav-item" data-page="analytics">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"></path><path d="M12 20V4"></path><path d="M6 20v-6"></path></svg>
+          <span class="nav-text">Analytics</span>
+        </a>
         <a href="#" class="nav-item" data-page="push">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
           <span class="nav-text">Push Notify</span>
@@ -604,10 +608,47 @@
           </div>
         </div>
       </div>
-    </main>
+    </div>
 
-  </div>
+    <!-- PAGE: ANALYTICS -->
+    <div id="page-analytics" class="page">
+      <div class="page-header">
+        <h2 class="page-heading">Analytics & Reports</h2>
+        <p class="page-desc">Track app engagement, top statuses, and user growth.</p>
+        <button class="btn btn-sm btn-ghost" onclick="loadAnalytics()">↻ Refresh</button>
+      </div>
 
+      <div class="stats-grid">
+        <div class="section-card">
+          <div class="section-card-header">
+            <h3>Top Liked Statuses</h3>
+          </div>
+          <div style="height:300px;position:relative">
+            <canvas id="chart-likes"></canvas>
+          </div>
+        </div>
+        
+        <div class="section-card">
+          <div class="section-card-header">
+            <h3>Most Downloaded</h3>
+          </div>
+          <div style="height:300px;position:relative">
+            <canvas id="chart-downloads"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-card" style="margin-top:20px">
+        <div class="section-card-header">
+          <h3>User Growth (Last 30 Days)</h3>
+        </div>
+        <div style="height:300px;position:relative">
+          <canvas id="chart-users"></canvas>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /#app -->
 
   <!-- EDIT MODAL -->
   <div id="edit-modal" class="modal-overlay hidden">

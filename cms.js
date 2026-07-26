@@ -141,6 +141,7 @@ function navigateTo(pageId) {
   else if (pageId === 'categories') loadCategories();
   else if (pageId === 'media') loadMediaLibrary();
   else if (pageId === 'users') loadUsers();
+  else if (pageId === 'analytics') loadAnalytics();
   else if (pageId === 'push') loadPushPage();
 }
 
@@ -1207,6 +1208,172 @@ function renderCategoryBreakdownChart() {
         }
       },
       cutout: '70%'
+    }
+  });
+}
+
+// ══════════════════════════════════════════
+// ANALYTICS PAGE
+// ══════════════════════════════════════════
+let analyticsCharts = {};
+
+async function loadAnalytics() {
+  const [statusesRes, profilesRes] = await Promise.all([
+    supabaseClient.from('statuses').select('id, content, likes_count, downloads_count, created_at'),
+    supabaseClient.from('profiles').select('created_at')
+  ]);
+
+  if (statusesRes.error || profilesRes.error) {
+    showToast('Failed to load analytics data', true);
+    return;
+  }
+
+  const statuses = statusesRes.data || [];
+  const profiles = profilesRes.data || [];
+
+  renderTopLikedChart(statuses);
+  renderTopDownloadedChart(statuses);
+  renderUserGrowthChart(profiles);
+}
+
+function renderTopLikedChart(statuses) {
+  const topLiked = [...statuses]
+    .sort((a, b) => (b.likes_count || 0) - (a.likes_count || 0))
+    .slice(0, 5);
+
+  const ctx = document.getElementById('chart-likes');
+  if (analyticsCharts.likes) analyticsCharts.likes.destroy();
+
+  analyticsCharts.likes = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: topLiked.map(s => s.content ? (s.content.length > 20 ? s.content.substring(0,20)+'...' : s.content) : 'Media Status'),
+      datasets: [{
+        label: 'Likes',
+        data: topLiked.map(s => s.likes_count || 0),
+        backgroundColor: '#bb86fc',
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0, color: '#9999AA' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        x: { ticks: { color: '#9999AA' }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+function renderTopDownloadedChart(statuses) {
+  const topDownloaded = [...statuses]
+    .sort((a, b) => (b.downloads_count || 0) - (a.downloads_count || 0))
+    .slice(0, 5);
+
+  const ctx = document.getElementById('chart-downloads');
+  if (analyticsCharts.downloads) analyticsCharts.downloads.destroy();
+
+  analyticsCharts.downloads = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: topDownloaded.map(s => s.content ? (s.content.length > 20 ? s.content.substring(0,20)+'...' : s.content) : 'Media Status'),
+      datasets: [{
+        label: 'Downloads',
+        data: topDownloaded.map(s => s.downloads_count || 0),
+        backgroundColor: '#03dac6',
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0, color: '#9999AA' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        x: { ticks: { color: '#9999AA' }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+function renderUserGrowthChart(profiles) {
+  // Aggregate user signups by day for the last 30 days
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+  
+  const dailyCounts = {};
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(thirtyDaysAgo.getTime() + (i * 24 * 60 * 60 * 1000));
+    const dateStr = d.toISOString().split('T')[0];
+    dailyCounts[dateStr] = 0;
+  }
+
+  let totalBefore30Days = 0;
+
+  profiles.forEach(p => {
+    const d = new Date(p.created_at);
+    if (d < thirtyDaysAgo) {
+      totalBefore30Days++;
+    } else {
+      const dateStr = d.toISOString().split('T')[0];
+      if (dailyCounts[dateStr] !== undefined) {
+        dailyCounts[dateStr]++;
+      }
+    }
+  });
+
+  // Calculate cumulative growth
+  let cumulative = totalBefore30Days;
+  const labels = [];
+  const data = [];
+
+  Object.keys(dailyCounts).sort().forEach(date => {
+    cumulative += dailyCounts[date];
+    // format as MMM DD
+    const d = new Date(date);
+    labels.push(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+    data.push(cumulative);
+  });
+
+  const ctx = document.getElementById('chart-users');
+  if (analyticsCharts.users) analyticsCharts.users.destroy();
+
+  analyticsCharts.users = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Total Users',
+        data: data,
+        borderColor: '#cf6679',
+        backgroundColor: 'rgba(207, 102, 121, 0.1)',
+        borderWidth: 2,
+        tension: 0.4,
+        fill: true,
+        pointRadius: 0,
+        pointHoverRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          mode: 'index',
+          intersect: false
+        }
+      },
+      scales: {
+        y: { beginAtZero: false, ticks: { precision: 0, color: '#9999AA' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        x: { ticks: { color: '#9999AA', maxTicksLimit: 10 }, grid: { display: false } }
+      }
     }
   });
 }
